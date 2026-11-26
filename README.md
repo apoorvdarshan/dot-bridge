@@ -8,12 +8,32 @@ It does **not** appear under your dot's **Computers** list. It appears as a plug
 
 ## Requirements
 
+- macOS 15+ for the menu bar app
 - Node 20+
 - `cloudflared` (`brew install cloudflared`)
 - `codex` CLI, only for the Codex tools
 - A ChatGPT plan that can add custom MCP servers. OpenAI's docs say Pro gets read/fetch tools only and Business/Enterprise get write tools. Plus isn't documented.
 
-## Run
+## Menu bar app
+
+`app/` is a small native SwiftUI app (no Electron). It lives in the menu bar, can optionally show in the Dock, and controls the bridge:
+
+- Start/stop switch, status light, and live activity list
+- MCP URL and pairing code with copy buttons
+- A separate window you can open or hide
+- Settings: show in Dock, open at login, start on launch, allowed folders, fixed public URL, Node path, port
+
+Build it:
+
+```sh
+npm install
+app/build.sh
+open build/dot-bridge.app
+```
+
+The app bundles `server.mjs` and its dependencies, and uses the `node` and `cloudflared` installed on your Mac. It is ad-hoc signed, so the first launch may need right-click → Open.
+
+## Run without the app
 
 ```sh
 npm install

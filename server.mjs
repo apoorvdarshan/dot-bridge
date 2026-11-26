@@ -37,11 +37,17 @@ function saveState() {
   }
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), { mode: 0o600 });
 }
-function log(event, detail = {}) {
-  const line = JSON.stringify({ t: new Date().toISOString(), event, ...detail });
-  fs.appendFileSync(LOG_FILE, line + '\n', { mode: 0o600 });
-  console.log(`[${event}]`, JSON.stringify(detail).slice(0, 300));
+const STATUS_JSON = process.env.DOT_BRIDGE_STATUS_JSON === '1';
+function emit(type, data) {
+  if (STATUS_JSON) process.stdout.write('DOTBRIDGE ' + JSON.stringify({ type, ...data }) + '\n');
 }
+function log(event, detail = {}) {
+  const entry = { t: new Date().toISOString(), event, ...detail };
+  fs.appendFileSync(LOG_FILE, JSON.stringify(entry) + '\n', { mode: 0o600 });
+  if (STATUS_JSON) emit('activity', entry);
+  else console.log(`[${event}]`, JSON.stringify(detail).slice(0, 300));
+}
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => process.exit(0));
 
 async function startQuickTunnel() {
   return new Promise((resolve, reject) => {
@@ -60,7 +66,14 @@ async function startQuickTunnel() {
   });
 }
 
-const PUBLIC_URL = (process.env.PUBLIC_URL || (await startQuickTunnel())).replace(/\/$/, '');
+let PUBLIC_URL;
+try {
+  PUBLIC_URL = (process.env.PUBLIC_URL || (await startQuickTunnel())).replace(/\/$/, '');
+} catch (err) {
+  emit('error', { message: err.message });
+  console.error(err.message);
+  process.exit(1);
+}
 const MCP_URL = new URL('/mcp', PUBLIC_URL);
 const PAIRING_CODE = String(100000 + (randomBytes(4).readUInt32BE() % 900000));
 
@@ -352,7 +365,14 @@ app.post('/mcp', auth, express.json({ limit: '10mb' }), async (req, res) => {
 app.all('/mcp', (_req, res) => res.status(405).set('Allow', 'POST').end());
 app.get('/', (_req, res) => res.type('text').send('dot-bridge is running.'));
 
-app.listen(PORT, '127.0.0.1', () => {
+if (STATUS_JSON) {
+  process.stdin.on('end', () => process.exit(0));
+  process.stdin.resume();
+}
+
+const listener = app.listen(PORT, '127.0.0.1', () => {
+  emit('ready', { url: MCP_URL.href, pairingCode: PAIRING_CODE, roots: ROOTS, logFile: LOG_FILE, hostname: os.hostname() });
+  if (STATUS_JSON) return;
   console.log(`
 dot-bridge is running on this Mac (${os.hostname()})
 
@@ -364,4 +384,9 @@ dot-bridge is running on this Mac (${os.hostname()})
 Add it in ChatGPT on the web: Plugins → + → Add custom MCP server,
 paste the URL above, choose OAuth, then enter the pairing code when asked.
 `);
+});
+listener.on('error', err => {
+  emit('error', { message: err.message });
+  console.error(err.message);
+  process.exit(1);
 });
