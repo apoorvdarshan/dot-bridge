@@ -44,7 +44,16 @@ final class BridgeController: ObservableObject {
             status = .failed("Node.js not found. Install it with: brew install node")
             return
         }
-        if AppSettings.publicURL.isEmpty, Self.findExecutable("cloudflared", override: "") == nil {
+        let permanent = AppSettings.hosting == "permanent"
+        let address = AppSettings.publicURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if permanent {
+            guard let url = URLComponents(string: address), url.scheme?.lowercased() == "https",
+                  let host = url.host, !host.isEmpty, url.user == nil, url.password == nil,
+                  ["", "/", "/mcp"].contains(url.path), url.query == nil, url.fragment == nil else {
+                status = .failed("Enter your permanent HTTPS hostname in Settings, or select Temporary URL.")
+                return
+            }
+        } else if Self.findExecutable("cloudflared", override: "") == nil {
             status = .failed("cloudflared not found. Install it with: brew install cloudflared")
             return
         }
@@ -60,8 +69,8 @@ final class BridgeController: ObservableObject {
         env["PORT"] = String(AppSettings.port)
         let roots = AppSettings.allowedRoots.trimmingCharacters(in: .whitespacesAndNewlines)
         if !roots.isEmpty { env["DOT_BRIDGE_ROOTS"] = roots }
-        let publicURL = AppSettings.publicURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        if publicURL.isEmpty { env.removeValue(forKey: "PUBLIC_URL") } else { env["PUBLIC_URL"] = publicURL }
+        env["PUBLIC_URL"] = permanent ? address : nil
+        env["DOT_BRIDGE_CHECK_ROUTE"] = permanent ? "1" : nil
         proc.environment = env
 
         let out = Pipe()

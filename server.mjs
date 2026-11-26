@@ -69,6 +69,7 @@ async function startQuickTunnel() {
 let PUBLIC_URL;
 try {
   PUBLIC_URL = (process.env.PUBLIC_URL || (await startQuickTunnel())).replace(/\/$/, '');
+  if (process.env.DOT_BRIDGE_CHECK_ROUTE === '1') PUBLIC_URL = new URL(PUBLIC_URL).origin;
 } catch (err) {
   emit('error', { message: err.message });
   console.error(err.message);
@@ -370,7 +371,28 @@ if (STATUS_JSON) {
   process.stdin.resume();
 }
 
-const listener = app.listen(PORT, '127.0.0.1', () => {
+const checkRoute = process.env.DOT_BRIDGE_CHECK_ROUTE === '1';
+const instanceId = randomUUID();
+if (checkRoute) {
+  app.get('/.well-known/dot-bridge-instance', (_req, res) => {
+    res.set('Cache-Control', 'no-store').type('text/plain').send(instanceId);
+  });
+}
+const listener = app.listen(PORT, '127.0.0.1', async () => {
+  if (checkRoute) {
+    try {
+      const response = await fetch(new URL('/.well-known/dot-bridge-instance', PUBLIC_URL), {
+        redirect: 'error',
+        signal: AbortSignal.timeout(10000)
+      });
+      if (!response.ok || await response.text() !== instanceId) throw new Error();
+    } catch {
+      const message = `Your permanent URL does not reach this bridge. Check the hostname and route your tunnel to http://127.0.0.1:${PORT}, then start again.`;
+      emit('error', { message });
+      console.error(message);
+      process.exit(1);
+    }
+  }
   emit('ready', { url: MCP_URL.href, pairingCode: PAIRING_CODE, roots: ROOTS, logFile: LOG_FILE, hostname: os.hostname() });
   if (STATUS_JSON) return;
   console.log(`

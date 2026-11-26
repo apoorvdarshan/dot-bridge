@@ -47,7 +47,14 @@ It prints a `https://….trycloudflare.com/mcp` URL and a 6-digit pairing code. 
 3. When the approval page opens, enter the pairing code.
 4. Ask your dot: `Use the dot-bridge plugin's computer_info tool.`
 
-The quick tunnel URL changes every time it restarts. For a stable URL, run a named Cloudflare tunnel and set `PUBLIC_URL=https://your-host`.
+Each Mac chooses its own hosting mode under **Settings → Hosting → Address**. Temporary URL is the default. To keep the same address across restarts:
+
+1. In **your own** Cloudflare account, create a [named tunnel](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/). Follow Cloudflare's connector installation steps on the Mac running dot-bridge.
+2. Add a published application route for a hostname on your domain, e.g. `bridge.example.com`, with service `http://127.0.0.1:8787` (or the local port in Settings). An existing HTTPS reverse proxy can serve the same purpose.
+3. Select **My permanent URL**, enter `https://bridge.example.com`, then stop and start the bridge. The app checks that the hostname reaches this specific Mac before showing it as connected.
+4. Connect the new `https://bridge.example.com/mcp` address in ChatGPT once. The Mac and its connector must be running for it to work. Switching back to **Temporary URL** preserves the saved hostname.
+
+For the CLI, set `PUBLIC_URL=https://your-host` and optionally `DOT_BRIDGE_CHECK_ROUTE=1` to verify the route on startup.
 
 ## Tools
 
