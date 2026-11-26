@@ -4,6 +4,7 @@ import SwiftUI
 
 enum AppSettings {
     static let showInDockKey = "showInDock"
+    static let showInMenuBarKey = "showInMenuBar"
     static let startOnLaunchKey = "startOnLaunch"
     static let allowedRootsKey = "allowedRoots"
     static let publicURLKey = "publicURL"
@@ -69,6 +70,7 @@ final class LoginItem: ObservableObject {
 
 struct SettingsView: View {
     @AppStorage(AppSettings.showInDockKey) private var showInDock = true
+    @AppStorage(AppSettings.showInMenuBarKey) private var showInMenuBar = true
     @AppStorage(AppSettings.startOnLaunchKey) private var startOnLaunch = true
     @AppStorage(AppSettings.allowedRootsKey) private var allowedRoots = ""
     @AppStorage(AppSettings.publicURLKey) private var publicURL = ""
@@ -102,6 +104,8 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     preference("Show in Dock", icon: "dock.rectangle", isOn: $showInDock)
                         .onChange(of: showInDock) { _, value in AppSettings.applyDockVisibility(value) }
+                    Divider()
+                    preference("Show in Menu Bar", icon: "menubar.rectangle", isOn: $showInMenuBar)
                     Divider()
                     preference("Open at login", icon: "sunrise", isOn: Binding(
                         get: { loginItem.status == .enabled || loginItem.status == .requiresApproval },

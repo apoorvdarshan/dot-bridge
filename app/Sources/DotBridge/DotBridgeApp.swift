@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct DotBridgeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @AppStorage(AppSettings.showInMenuBarKey) private var showInMenuBar = true
 
     var body: some Scene {
         Window("dot-bridge", id: "main") {
@@ -44,7 +45,7 @@ struct DotBridgeApp: App {
         }
         .windowResizability(.contentSize)
 
-        MenuBarExtra {
+        MenuBarExtra(isInserted: $showInMenuBar) {
             PanelView()
                 .environmentObject(appDelegate.bridge)
                 .background(WindowOpenerRegistrar(appDelegate: appDelegate))
