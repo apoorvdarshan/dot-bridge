@@ -43,21 +43,22 @@ final class LoginItem: ObservableObject {
     func configureDefault() {
         refresh()
         guard !UserDefaults.standard.bool(forKey: configuredKey) else { return }
-        if status == .notRegistered {
-            setEnabled(true)
-        } else {
+        if status == .enabled || status == .requiresApproval {
             UserDefaults.standard.set(true, forKey: configuredKey)
+        } else {
+            // A fresh main-app login item can also report .notFound.
+            setEnabled(true)
         }
     }
 
     func setEnabled(_ enabled: Bool) {
-        UserDefaults.standard.set(true, forKey: configuredKey)
         do {
             if enabled {
                 try SMAppService.mainApp.register()
             } else {
                 try SMAppService.mainApp.unregister()
             }
+            UserDefaults.standard.set(true, forKey: configuredKey)
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
