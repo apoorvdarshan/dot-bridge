@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AppSettings.startOnLaunchKey: true
         ])
         AppSettings.applyDockVisibility(UserDefaults.standard.bool(forKey: AppSettings.showInDockKey))
+        LoginItem.shared.configureDefault()
         if UserDefaults.standard.bool(forKey: AppSettings.startOnLaunchKey) {
             bridge.start()
         }

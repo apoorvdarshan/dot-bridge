@@ -29,6 +29,43 @@ enum AppSettings {
     }
 }
 
+@MainActor
+final class LoginItem: ObservableObject {
+    static let shared = LoginItem()
+    private let configuredKey = "loginItemConfigured"
+    @Published private(set) var status = SMAppService.mainApp.status
+    @Published private(set) var errorMessage: String?
+
+    func refresh() {
+        status = SMAppService.mainApp.status
+    }
+
+    func configureDefault() {
+        refresh()
+        guard !UserDefaults.standard.bool(forKey: configuredKey) else { return }
+        if status == .notRegistered {
+            setEnabled(true)
+        } else {
+            UserDefaults.standard.set(true, forKey: configuredKey)
+        }
+    }
+
+    func setEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(true, forKey: configuredKey)
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        refresh()
+    }
+}
+
 struct SettingsView: View {
     @AppStorage(AppSettings.showInDockKey) private var showInDock = true
     @AppStorage(AppSettings.startOnLaunchKey) private var startOnLaunch = true
@@ -37,8 +74,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.hostingKey) private var hosting = AppSettings.defaultHosting
     @AppStorage(AppSettings.nodePathKey) private var nodePath = ""
     @AppStorage(AppSettings.portKey) private var port = 8787
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
-    @State private var loginError: String?
+    @ObservedObject private var loginItem = LoginItem.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -66,10 +102,17 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Toggle("Show in Dock", isOn: $showInDock)
                         .onChange(of: showInDock) { _, value in AppSettings.applyDockVisibility(value) }
-                    Toggle("Open at login", isOn: $launchAtLogin)
-                        .onChange(of: launchAtLogin) { _, value in setLaunchAtLogin(value) }
+                    Toggle("Open at login", isOn: Binding(
+                        get: { loginItem.status == .enabled || loginItem.status == .requiresApproval },
+                        set: { loginItem.setEnabled($0) }
+                    ))
+                    if loginItem.status == .requiresApproval {
+                        Button("Approve in System Settings…") {
+                            SMAppService.openSystemSettingsLoginItems()
+                        }
+                    }
                     Toggle("Start the bridge when the app opens", isOn: $startOnLaunch)
-                    if let loginError {
+                    if let loginError = loginItem.errorMessage {
                         Text(loginError).font(.caption).foregroundStyle(.red)
                     }
                 }.padding(.top, 6)
@@ -94,15 +137,9 @@ struct SettingsView: View {
         }
         .toggleStyle(.switch)
         .controlSize(.small)
-    }
-
-    private func setLaunchAtLogin(_ enabled: Bool) {
-        do {
-            if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
-            loginError = nil
-        } catch {
-            loginError = error.localizedDescription
-            launchAtLogin = SMAppService.mainApp.status == .enabled
+        .onAppear { loginItem.refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            loginItem.refresh()
         }
     }
 }
