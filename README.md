@@ -1,10 +1,14 @@
 # dot-bridge
 
-Let your ChatGPT dot use your Mac without the ChatGPT desktop app.
+Ask your ChatGPT dot from your phone to check a file or start a Codex task on your Mac. **dot-bridge** exposes local tools through a custom Model Context Protocol (MCP) plugin, without requiring the ChatGPT desktop app. Your Mac runs the tools; the plugin appears under **Plugins** in ChatGPT.
 
-dot-bridge is a small Node program. It runs an MCP server on your Mac, opens a Cloudflare tunnel to it, and protects it with OAuth, a pairing code, and explicit local approval. You add it to ChatGPT as a custom MCP plugin, and your dot (or any ChatGPT chat) can call its tools.
+<img src="docs/images/dot-bridge.png" width="440" alt="dot-bridge on macOS, showing connection status, an example MCP address, and a hidden pairing code">
 
-It does **not** appear under your dot's **Computers** list. It appears as a plugin.
+## What you can do
+
+- **Inspect a project:** list a directory or read a text file without sending the entire repository to a cloud computer.
+- **Work on the Mac:** edit a file, run a shell command, or start a local Codex task and check its output. Available actions depend on your ChatGPT plan and workspace permissions.
+- **Control access locally:** approve each pairing on the Mac, watch activity, and revoke individual connections from the app.
 
 ## Requirements
 
@@ -14,7 +18,7 @@ It does **not** appear under your dot's **Computers** list. It appears as a plug
 - `codex` CLI, only for the Codex tools
 - A ChatGPT plan that can add custom MCP servers. OpenAI's docs say Pro gets read/fetch tools only and Business/Enterprise get write tools. Plus isn't documented.
 
-## Menu bar app
+## Build the Mac app
 
 `app/` is a small native SwiftUI app (no Electron). It shows in the Dock and the menu bar by default (either can be hidden), and controls the bridge:
 
@@ -23,7 +27,7 @@ It does **not** appear under your dot's **Computers** list. It appears as a plug
 - A separate window you can open or hide
 - Settings: show in Dock (on by default), open at login, start on launch, allowed folders, fixed public URL, Node path, port
 
-Build it:
+From the repository root, with Xcode and its Swift toolchain installed:
 
 ```sh
 npm install
@@ -40,12 +44,16 @@ npm install
 npm start
 ```
 
-It prints a `https://….trycloudflare.com/mcp` URL and a 6-digit pairing code. Then:
+## Connect ChatGPT
+
+Keep the bridge running. Copy the MCP URL and six-digit code from the app’s **Connection** section or the interactive CLI terminal.
 
 1. In ChatGPT on the web, open **Plugins → + → Add custom MCP server**.
 2. Paste the URL, choose **OAuth**, accept the warning, and select **Create as a plugin**, then install it.
 3. Enter the pairing code in the browser. Match its request ID in dot-bridge on your Mac and click **Approve** within 60 seconds. If running in a terminal instead, enter the displayed `approve` command there.
 4. Ask your dot: `Use the dot-bridge plugin's computer_info tool.`
+
+## Keep the same URL
 
 Each Mac chooses its own hosting mode under **Settings → Hosting → Address**. Temporary URL is the default. To keep the same address across restarts:
 
