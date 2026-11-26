@@ -42,7 +42,7 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Settings", systemImage: "slider.horizontal.3").font(.headline)
+            Text("Settings").font(.headline)
             Text("Hosting").font(.subheadline.weight(.semibold))
             Group {
                 Picker("Address", selection: $hosting) {

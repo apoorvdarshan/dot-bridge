@@ -10,34 +10,31 @@ struct PanelView: View {
             header.padding(16)
             Divider()
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 14) {
                     if bridge.status == .running {
-                        connectionDetails.dashboardCard()
+                        connectionDetails
                     } else if case .failed(let message) = bridge.status {
                         Label(message, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.red).textSelection(.enabled).dashboardCard()
+                            .foregroundStyle(.red).textSelection(.enabled)
                     }
-                    activityList.dashboardCard()
-                    SettingsView().dashboardCard()
+                    Divider()
+                    SettingsView()
+                    Divider()
+                    activityList
                 }
-                .padding(12)
+                .padding(16)
             }
             Divider()
             footer.padding(.horizontal, 16).padding(.vertical, 9)
         }
         .frame(width: inWindow ? 420 : 370, height: inWindow ? 590 : 500)
-        .background(LinearGradient(colors: [.teal.opacity(0.12), .clear, .indigo.opacity(0.08)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing))
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: "point.3.connected.trianglepath.dotted")
-                .font(.title2.weight(.semibold)).foregroundStyle(.teal)
-                .frame(width: 42, height: 42)
-                .background(.teal.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
             VStack(alignment: .leading, spacing: 1) {
-                Text("dot-bridge").font(.system(.title3, design: .rounded).weight(.bold))
+                Text("dot-bridge").font(.system(size: 22, weight: .semibold))
                 HStack(spacing: 5) {
                     Circle().fill(statusColor).frame(width: 7, height: 7)
                     Text(statusText).font(.caption)
@@ -53,13 +50,15 @@ struct PanelView: View {
 
     private var connectionDetails: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Connection", systemImage: "link").font(.headline)
+            Text("Connection").font(.headline)
             copyRow(title: "MCP server URL", value: bridge.mcpURL)
             copyRow(title: "Pairing code", value: bridge.pairingCode, large: true)
-            Text("In ChatGPT on the web: Plugins → + → Add custom MCP server. Paste the URL, choose OAuth, then enter the pairing code.")
+            DisclosureGroup("Connect to ChatGPT") {
+                Text("In ChatGPT on the web: Plugins → + → Add custom MCP server. Paste the URL, choose OAuth, then enter the pairing code.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            }.font(.caption)
         }
     }
 
@@ -98,10 +97,10 @@ struct PanelView: View {
                 }
             }
             if bridge.activity.isEmpty {
-                Text("Bridge activity will appear here.")
+                Text("No tool calls yet.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, minHeight: 40, alignment: .center)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 4) {
@@ -154,14 +153,5 @@ struct PanelView: View {
         case .failed: "Error"
         case .stopped: "Stopped"
         }
-    }
-}
-
-private extension View {
-    func dashboardCard() -> some View {
-        self.frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-            .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.08)) }
     }
 }
