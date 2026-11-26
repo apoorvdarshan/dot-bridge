@@ -7,17 +7,10 @@ struct PanelView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header.padding(16)
-            Divider()
+            header
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    if bridge.status == .running {
-                        connectionDetails
-                    } else if case .failed(let message) = bridge.status {
-                        Label(message, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.red).textSelection(.enabled)
-                    }
-                    Divider()
+                VStack(alignment: .leading, spacing: 16) {
+                    connectionDetails
                     SettingsView()
                     Divider()
                     activityList
@@ -27,38 +20,65 @@ struct PanelView: View {
             Divider()
             footer.padding(.horizontal, 16).padding(.vertical, 9)
         }
-        .frame(width: inWindow ? 420 : 370, height: inWindow ? 590 : 500)
+        .frame(width: inWindow ? 440 : 378, height: inWindow ? 620 : 520)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text("dot-bridge").font(.system(size: 22, weight: .semibold))
-                HStack(spacing: 5) {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("PERSONAL CONNECTOR")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(1.4)
+                Text("dot-bridge").font(.system(size: 37, weight: .bold, design: .rounded)).tracking(-1.7)
+                HStack(spacing: 6) {
                     Circle().fill(statusColor).frame(width: 7, height: 7)
-                    Text(statusText).font(.caption)
+                    Text(statusText).font(.caption.weight(.medium))
                 }
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(.black.opacity(0.25), in: Capsule())
             }
-            Spacer()
-            Toggle("Bridge running", isOn: Binding(get: { bridge.isActive }, set: { _ in bridge.toggle() }))
-                .toggleStyle(.switch)
-                .labelsHidden()
-                .help(bridge.isActive ? "Stop the bridge" : "Start the bridge")
+            Spacer(minLength: 0)
+            if let mascot = NSImage(named: "desk-dot") {
+                Image(nsImage: mascot).resizable().scaledToFit()
+                    .frame(width: inWindow ? 125 : 105, height: 110).accessibilityHidden(true)
+            }
         }
+        .padding(.horizontal, 18)
+        .foregroundStyle(.white)
+        .background(Color(red: 0.12, green: 0.23, blue: 0.49))
     }
 
     private var connectionDetails: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Connection").font(.headline)
-            copyRow(title: "MCP server URL", value: bridge.mcpURL)
-            copyRow(title: "Pairing code", value: bridge.pairingCode, large: true)
-            DisclosureGroup("Connect to ChatGPT") {
-                Text("In ChatGPT on the web: Plugins → + → Add custom MCP server. Paste the URL, choose OAuth, then enter the pairing code.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            }.font(.caption)
+            HStack {
+                Label("Connection", systemImage: "cable.connector").font(.headline)
+                Spacer()
+                Toggle("Bridge running", isOn: Binding(get: { bridge.isActive }, set: { _ in bridge.toggle() }))
+                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    .help(bridge.isActive ? "Stop the bridge" : "Start the bridge")
+            }
+            if bridge.status == .running {
+                copyRow(title: "MCP server URL", value: bridge.mcpURL)
+                Rectangle().strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
+                    .foregroundStyle(.secondary.opacity(0.45)).frame(height: 1)
+                copyRow(title: "Pairing code", value: bridge.pairingCode, large: true)
+                DisclosureGroup("Connect to ChatGPT") {
+                    Text("In ChatGPT on the web, add a custom MCP server under Plugins. Paste the URL, choose OAuth, then enter the pairing code when asked.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }.font(.caption)
+            } else if case .failed(let message) = bridge.status {
+                Label(message, systemImage: "exclamationmark.triangle").foregroundStyle(.red).textSelection(.enabled)
+            } else if bridge.status == .starting {
+                HStack { ProgressView().controlSize(.small); Text("Preparing your connection…") }
+                    .font(.callout).foregroundStyle(.secondary)
+            } else {
+                Text("Turn on the bridge to connect ChatGPT to this Mac.").font(.callout).foregroundStyle(.secondary)
+            }
+        }
+        .padding(14)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(alignment: .leading) {
+            Capsule().fill(.blue).frame(width: 3).padding(.vertical, 12)
         }
     }
 
@@ -97,7 +117,7 @@ struct PanelView: View {
                 }
             }
             if bridge.activity.isEmpty {
-                Text("No tool calls yet.")
+                Label("Waiting for the first tool call", systemImage: "waveform.path")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, alignment: .leading)

@@ -12,6 +12,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/server"
 cp "$BIN" "$APP/Contents/MacOS/DotBridge"
 cp Info.plist "$APP/Contents/Info.plist"
+cp icon-src/desk-dot.png "$APP/Contents/Resources/desk-dot.png"
 cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp "$ROOT/server.mjs" "$ROOT/package.json" "$ROOT/package-lock.json" "$APP/Contents/Resources/server/"
 (cd "$APP/Contents/Resources/server" && npm ci --omit=dev --silent)
