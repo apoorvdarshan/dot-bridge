@@ -3,47 +3,48 @@ import SwiftUI
 struct PanelView: View {
     @EnvironmentObject private var bridge: BridgeController
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.openSettings) private var openSettings
     var inWindow = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
+        VStack(spacing: 0) {
+            header.padding(16)
             Divider()
-            if bridge.status == .running {
-                connectionDetails
-                Divider()
-            } else if case .failed(let message) = bridge.status {
-                Text(message)
-                    .font(.callout)
-                    .foregroundStyle(.red)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                Divider()
-            } else if bridge.status == .starting {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Opening tunnel…").foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if bridge.status == .running {
+                        connectionDetails.dashboardCard()
+                    } else if case .failed(let message) = bridge.status {
+                        Label(message, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.red).textSelection(.enabled).dashboardCard()
+                    }
+                    activityList.dashboardCard()
+                    SettingsView().dashboardCard()
                 }
-                Divider()
+                .padding(12)
             }
-            activityList
             Divider()
-            footer
+            footer.padding(.horizontal, 16).padding(.vertical, 9)
         }
-        .padding(14)
-        .frame(width: 340)
+        .frame(width: inWindow ? 420 : 370, height: inWindow ? 590 : 500)
+        .background(LinearGradient(colors: [.teal.opacity(0.12), .clear, .indigo.opacity(0.08)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing))
     }
 
     private var header: some View {
         HStack(spacing: 10) {
-            Circle().fill(statusColor).frame(width: 10, height: 10)
+            Image(systemName: "point.3.connected.trianglepath.dotted")
+                .font(.title2.weight(.semibold)).foregroundStyle(.teal)
+                .frame(width: 42, height: 42)
+                .background(.teal.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
             VStack(alignment: .leading, spacing: 1) {
-                Text("dot-bridge").font(.headline)
-                Text(statusText).font(.caption).foregroundStyle(.secondary)
+                Text("dot-bridge").font(.system(.title3, design: .rounded).weight(.bold))
+                HStack(spacing: 5) {
+                    Circle().fill(statusColor).frame(width: 7, height: 7)
+                    Text(statusText).font(.caption)
+                }
             }
             Spacer()
-            Toggle("", isOn: Binding(get: { bridge.isActive }, set: { _ in bridge.toggle() }))
+            Toggle("Bridge running", isOn: Binding(get: { bridge.isActive }, set: { _ in bridge.toggle() }))
                 .toggleStyle(.switch)
                 .labelsHidden()
                 .help(bridge.isActive ? "Stop the bridge" : "Start the bridge")
@@ -52,8 +53,9 @@ struct PanelView: View {
 
     private var connectionDetails: some View {
         VStack(alignment: .leading, spacing: 10) {
-            copyRow(title: "MCP server URL", value: bridge.mcpURL, monospaced: true)
-            copyRow(title: "Pairing code", value: bridge.pairingCode, monospaced: true, large: true)
+            Label("Connection", systemImage: "link").font(.headline)
+            copyRow(title: "MCP server URL", value: bridge.mcpURL)
+            copyRow(title: "Pairing code", value: bridge.pairingCode, large: true)
             Text("In ChatGPT on the web: Plugins → + → Add custom MCP server. Paste the URL, choose OAuth, then enter the pairing code.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -61,7 +63,7 @@ struct PanelView: View {
         }
     }
 
-    private func copyRow(title: String, value: String?, monospaced: Bool, large: Bool = false) -> some View {
+    private func copyRow(title: String, value: String?, large: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title).font(.caption).foregroundStyle(.secondary)
             HStack {
@@ -78,7 +80,8 @@ struct PanelView: View {
                     Image(systemName: "doc.on.doc")
                 }
                 .buttonStyle(.borderless)
-                .help("Copy")
+                .accessibilityLabel("Copy \(title)")
+                .help("Copy \(title)")
             }
         }
     }
@@ -86,7 +89,7 @@ struct PanelView: View {
     private var activityList: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Activity").font(.caption).foregroundStyle(.secondary)
+                Text("Activity").font(.headline)
                 Spacer()
                 if bridge.logFile != nil {
                     Button("Open log") { bridge.openLog() }
@@ -95,7 +98,7 @@ struct PanelView: View {
                 }
             }
             if bridge.activity.isEmpty {
-                Text("Nothing yet.")
+                Text("Bridge activity will appear here.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, minHeight: 40, alignment: .center)
@@ -128,10 +131,6 @@ struct PanelView: View {
                     NSApp.activate(ignoringOtherApps: true)
                 }
             }
-            Button("Settings…") {
-                openSettings()
-                NSApp.activate(ignoringOtherApps: true)
-            }
             Spacer()
             Button("Quit") { NSApp.terminate(nil) }
         }
@@ -155,5 +154,14 @@ struct PanelView: View {
         case .failed: "Error"
         case .stopped: "Stopped"
         }
+    }
+}
+
+private extension View {
+    func dashboardCard() -> some View {
+        self.frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.08)) }
     }
 }

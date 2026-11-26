@@ -41,22 +41,16 @@ struct SettingsView: View {
     @State private var loginError: String?
 
     var body: some View {
-        Form {
-            Section("App") {
-                Toggle("Show in Dock", isOn: $showInDock)
-                    .onChange(of: showInDock) { _, value in AppSettings.applyDockVisibility(value) }
-                Toggle("Open at login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, value in setLaunchAtLogin(value) }
-                Toggle("Start the bridge when the app opens", isOn: $startOnLaunch)
-                if let loginError {
-                    Text(loginError).font(.caption).foregroundStyle(.red)
-                }
-            }
-            Section("Hosting") {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Settings", systemImage: "slider.horizontal.3").font(.headline)
+            Text("Hosting").font(.subheadline.weight(.semibold))
+            Group {
                 Picker("Address", selection: $hosting) {
                     Text("Temporary URL").tag("temporary")
                     Text("My permanent URL").tag("permanent")
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
                 if hosting == "permanent" {
                     TextField("Public HTTPS URL", text: $publicURL, prompt: Text("https://bridge.example.com"))
                     Text("In your own Cloudflare account, create a tunnel, install its connector on this Mac, and route your hostname to http://127.0.0.1:\(String(port)). An existing HTTPS reverse proxy also works.")
@@ -67,20 +61,39 @@ struct SettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Section {
-                TextField("Allowed folders", text: $allowedRoots, prompt: Text(NSHomeDirectory()))
-                TextField("Node path", text: $nodePath, prompt: Text("Found automatically"))
-                TextField("Local port", value: $port, format: .number.grouping(.never))
-            } header: {
-                Text("Bridge")
-            } footer: {
-                Text("Separate folders with a colon. Changes apply the next time you start the bridge.")
-                    .font(.caption).foregroundStyle(.secondary)
+            Divider()
+            DisclosureGroup("App preferences") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("Show in Dock", isOn: $showInDock)
+                        .onChange(of: showInDock) { _, value in AppSettings.applyDockVisibility(value) }
+                    Toggle("Open at login", isOn: $launchAtLogin)
+                        .onChange(of: launchAtLogin) { _, value in setLaunchAtLogin(value) }
+                    Toggle("Start the bridge when the app opens", isOn: $startOnLaunch)
+                    if let loginError {
+                        Text(loginError).font(.caption).foregroundStyle(.red)
+                    }
+                }.padding(.top, 6)
             }
+            Divider()
+            DisclosureGroup("Advanced bridge settings") {
+                VStack(alignment: .leading, spacing: 8) {
+                    LabeledContent("Allowed folders") {
+                        TextField("Allowed folders", text: $allowedRoots, prompt: Text(NSHomeDirectory())).labelsHidden()
+                    }
+                    LabeledContent("Node path") {
+                        TextField("Node path", text: $nodePath, prompt: Text("Automatic")).labelsHidden()
+                    }
+                    LabeledContent("Local port") {
+                        TextField("Local port", value: $port, format: .number.grouping(.never)).labelsHidden()
+                    }
+                    Text("Separate folder paths with a colon.").font(.caption).foregroundStyle(.secondary)
+                }.padding(.top, 6)
+            }
+            Text("Hosting and bridge changes apply on the next start.")
+                .font(.caption).foregroundStyle(.secondary)
         }
-        .formStyle(.grouped)
-        .frame(width: 440)
-        .fixedSize(horizontal: false, vertical: true)
+        .toggleStyle(.switch)
+        .controlSize(.small)
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {

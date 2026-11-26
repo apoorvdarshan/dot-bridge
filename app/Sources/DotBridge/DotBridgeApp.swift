@@ -52,9 +52,6 @@ struct DotBridgeApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Settings {
-            SettingsView()
-        }
     }
 }
 
