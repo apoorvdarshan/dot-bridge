@@ -10,7 +10,29 @@ struct PanelView: View {
             header
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    ForEach(bridge.requests) { request in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label("Approve on this Mac", systemImage: "lock.shield").font(.headline)
+                            Text("Match \(request.id.prefix(8)) with your browser. Approving lets this client run commands as you.")
+                            Text("Callback: \(request.host)").font(.caption)
+                            HStack {
+                                Button("Deny") { bridge.decide("deny", for: request) }
+                                Button("Approve") { bridge.decide("approve", for: request) }
+                            }
+                        }
+                    }
                     connectionDetails
+                    if !bridge.paired.isEmpty {
+                        DisclosureGroup("Paired connections (\(bridge.paired.count))") {
+                            ForEach(bridge.paired) { client in
+                                HStack {
+                                    Text("\(client.host) · \(client.id.prefix(8))")
+                                    Spacer()
+                                    Button("Revoke", role: .destructive) { bridge.decide("revoke", for: client) }
+                                }
+                            }
+                        }
+                    }
                     SettingsView()
                     Divider()
                     activityList
@@ -63,7 +85,7 @@ struct PanelView: View {
                     .foregroundStyle(.secondary.opacity(0.45)).frame(height: 1)
                 copyRow(title: "Pairing code", value: bridge.pairingCode, large: true)
                 DisclosureGroup("Connect to ChatGPT") {
-                    Text("In ChatGPT on the web, add a custom MCP server under Plugins. Paste the URL, choose OAuth, then enter the pairing code when asked.")
+                    Text("In ChatGPT Plugins, add the URL with OAuth. Enter the pairing code, then match the request ID and approve here on your Mac.")
                         .font(.caption).foregroundStyle(.secondary)
                 }.font(.caption)
             } else if case .failed(let message) = bridge.status {

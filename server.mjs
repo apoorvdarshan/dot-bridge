@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
+import { createInterface } from 'node:readline';
 import os from 'node:os';
 import path from 'node:path';
 import express from 'express';
@@ -35,7 +36,9 @@ function saveState() {
   for (const kind of ['access', 'refresh']) {
     for (const [k, v] of Object.entries(state[kind])) if (v.expiresAt < now) delete state[kind][k];
   }
-  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), { mode: 0o600 });
+  const temporary = `${STATE_FILE}.${randomUUID()}.tmp`;
+  fs.writeFileSync(temporary, JSON.stringify(state), { mode: 0o600, flag: 'wx' });
+  fs.renameSync(temporary, STATE_FILE);
 }
 const STATUS_JSON = process.env.DOT_BRIDGE_STATUS_JSON === '1';
 function emit(type, data) {
@@ -81,9 +84,46 @@ const PAIRING_CODE = String(100000 + (randomBytes(4).readUInt32BE() % 900000));
 const pending = new Map();
 const codes = new Map();
 
+const waiting = new Map();
+// Discard grants issued before local approval was required.
+for (const tokens of [state.access, state.refresh]) {
+  for (const [token, grant] of Object.entries(tokens)) if (!grant.approval) delete tokens[token];
+}
+saveState();
+
+function connections() {
+  const active = new Map();
+  for (const grant of [...Object.values(state.access), ...Object.values(state.refresh)]) {
+    if (grant.expiresAt > Date.now()) active.set(grant.approval.id, grant.approval);
+  }
+  return [...active.values()];
+}
+
+function publishAccess() {
+  const requests = [...waiting.values()].map(entry => entry.approval);
+  const paired = connections();
+  emit('access', { requests, paired });
+  if (!STATUS_JSON) {
+    for (const request of requests) console.log(`Match ${request.id.slice(0, 8)} in your browser (${request.host}). Type approve ${request.id} or deny ${request.id}`);
+    for (const grant of paired) console.log(`Paired: ${grant.host}. To disconnect: revoke ${grant.id}`);
+  }
+}
+
+function localDecision(action, id) {
+  if (action === 'revoke') {
+    for (const tokens of [state.access, state.refresh]) {
+      for (const [key, grant] of Object.entries(tokens)) if (grant.approval.id === id) delete tokens[key];
+    }
+    saveState();
+    publishAccess();
+  } else if (action === 'approve' || action === 'deny') {
+    waiting.get(id)?.finish(action === 'approve');
+  }
+}
+
 const clientsStore = {
   async getClient(id) {
-    return state.clients[id];
+    return Object.hasOwn(state.clients, id) ? state.clients[id] : undefined;
   },
   async registerClient(client) {
     state.clients[client.client_id] = client;
@@ -93,13 +133,14 @@ const clientsStore = {
   }
 };
 
-function issueTokens(clientId, scopes, resource) {
+function issueTokens(clientId, scopes, resource, approval) {
   const access = randomBytes(32).toString('hex');
   const refresh = randomBytes(32).toString('hex');
   const now = Date.now();
-  state.access[access] = { clientId, scopes, resource, expiresAt: now + ACCESS_TTL * 1000 };
-  state.refresh[refresh] = { clientId, scopes, resource, expiresAt: now + REFRESH_TTL * 1000 };
+  state.access[access] = { clientId, scopes, resource, approval, expiresAt: now + ACCESS_TTL * 1000 };
+  state.refresh[refresh] = { clientId, scopes, resource, approval, expiresAt: now + REFRESH_TTL * 1000 };
   saveState();
+  publishAccess();
   return { access_token: access, token_type: 'bearer', expires_in: ACCESS_TTL, refresh_token: refresh, scope: scopes.join(' ') };
 }
 
@@ -107,6 +148,8 @@ const provider = {
   clientsStore,
   async authorize(client, params, res) {
     if (!client.redirect_uris.includes(params.redirectUri)) throw new InvalidRequestError('Unregistered redirect_uri');
+    if (params.resource && params.resource.href !== MCP_URL.href) throw new InvalidRequestError('Wrong resource');
+    for (const [key, request] of pending) if (request.expiresAt <= Date.now()) pending.delete(key);
     const id = randomUUID();
     pending.set(id, { client, params, expiresAt: Date.now() + 10 * 60_000 });
     res.type('html').send(approvalPage(id, client.client_name || client.client_id));
@@ -116,23 +159,24 @@ const provider = {
     if (!data) throw new InvalidGrantError('Invalid authorization code');
     return data.params.codeChallenge;
   },
-  async exchangeAuthorizationCode(client, code) {
+  async exchangeAuthorizationCode(client, code, _verifier, redirectUri, resource) {
     const data = codes.get(code);
     if (!data || data.expiresAt < Date.now()) throw new InvalidGrantError('Invalid authorization code');
     if (data.client.client_id !== client.client_id) throw new InvalidGrantError('Code was issued to another client');
+    if (redirectUri !== data.params.redirectUri || (resource && resource.href !== MCP_URL.href)) throw new InvalidGrantError('Grant mismatch');
     codes.delete(code);
     log('authorized', { client_id: client.client_id });
-    return issueTokens(client.client_id, data.params.scopes || [], data.params.resource?.href);
+    return issueTokens(client.client_id, data.params.scopes || [], MCP_URL.href, data.approval);
   },
   async exchangeRefreshToken(client, refreshToken) {
     const data = state.refresh[refreshToken];
-    if (!data || data.expiresAt < Date.now() || data.clientId !== client.client_id) throw new InvalidGrantError('Invalid refresh token');
+    if (!Object.hasOwn(state.refresh, refreshToken) || !data.approval || data.resource !== MCP_URL.href || data.expiresAt < Date.now() || data.clientId !== client.client_id) throw new InvalidGrantError('Invalid refresh token');
     delete state.refresh[refreshToken];
-    return issueTokens(client.client_id, data.scopes, data.resource);
+    return issueTokens(client.client_id, data.scopes, data.resource, data.approval);
   },
   async verifyAccessToken(token) {
     const data = state.access[token];
-    if (!data || data.expiresAt < Date.now()) throw new InvalidTokenError('Invalid or expired token');
+    if (!Object.hasOwn(state.access, token) || !data.approval || data.resource !== MCP_URL.href || !(data.expiresAt > Date.now())) throw new InvalidTokenError('Invalid or expired token');
     return {
       token,
       clientId: data.clientId,
@@ -141,9 +185,9 @@ const provider = {
       resource: data.resource ? new URL(data.resource) : undefined
     };
   },
-  async revokeToken(_client, { token }) {
-    delete state.access[token];
-    delete state.refresh[token];
+  async revokeToken(client, { token }) {
+    if (state.access[token]?.clientId === client.client_id) delete state.access[token];
+    if (state.refresh[token]?.clientId === client.client_id) delete state.refresh[token];
     saveState();
   }
 };
@@ -159,11 +203,11 @@ button{font-size:17px;padding:12px;width:100%;background:#111;color:#fff;border:
 .warn{background:#fff4e5;padding:12px;border-radius:8px;font-size:14px}</style></head><body>
 <h1>Allow access to ${escapeHtml(os.hostname())}?</h1>
 <p><b>${escapeHtml(clientName)}</b> wants to run commands and read and write files on this Mac.</p>
-<p class="warn">Only approve if you just added dot-bridge in ChatGPT. Enter the pairing code shown in the dot-bridge terminal.</p>
+<p class="warn">Only approve if you just added dot-bridge in ChatGPT. Enter the pairing code shown on your Mac. Then approve request <b>${escapeHtml(id.slice(0, 8))}</b> in dot-bridge on your Mac.</p>
 ${error ? `<p class="err">${escapeHtml(error)}</p>` : ''}
 <form method="post" action="/approve"><input type="hidden" name="id" value="${escapeHtml(id)}">
 <input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" autofocus required>
-<button type="submit">Allow access</button></form></body></html>`;
+<button type="submit">Request approval on my Mac</button></form></body></html>`;
 }
 
 let failedAttempts = 0;
@@ -325,7 +369,8 @@ app.use(mcpAuthRouter({
   resourceName: `dot-bridge (${os.hostname()})`
 }));
 
-app.post('/approve', express.urlencoded({ extended: false }), (req, res) => {
+app.post('/approve', express.urlencoded({ extended: false }), async (req, res) => {
+  res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
   const p = pending.get(req.body.id);
   if (!p || p.expiresAt < Date.now()) return res.status(400).type('html').send('<p>This request expired. Reconnect from ChatGPT.</p>');
   if (failedAttempts >= 5) return res.status(429).type('html').send('<p>Too many wrong codes. Restart dot-bridge.</p>');
@@ -334,9 +379,27 @@ app.post('/approve', express.urlencoded({ extended: false }), (req, res) => {
     log('approval_failed', { attempts: failedAttempts });
     return res.status(401).type('html').send(approvalPage(req.body.id, p.client.client_name || p.client.client_id, 'Wrong code.'));
   }
-  pending.delete(req.body.id);
+  const id = req.body.id;
+  pending.delete(id);
+  const approval = { id, host: new URL(p.params.redirectUri).hostname };
+  const allowed = await new Promise(resolve => {
+    const timer = setTimeout(() => finish(false), 60_000);
+    function finish(value) {
+      clearTimeout(timer);
+      res.off('close', disconnected);
+      waiting.delete(id);
+      publishAccess();
+      resolve(value);
+    }
+    function disconnected() { finish(false); }
+    res.once('close', disconnected);
+    waiting.set(id, { approval, finish });
+    publishAccess();
+  });
+  if (res.destroyed) return;
+  if (!allowed) return res.status(403).send('Not approved on the Mac. Restart pairing to try again.');
   const code = randomBytes(24).toString('hex');
-  codes.set(code, { client: p.client, params: p.params, expiresAt: Date.now() + 5 * 60_000 });
+  codes.set(code, { approval, client: p.client, params: p.params, expiresAt: Date.now() + 5 * 60_000 });
   const target = new URL(p.params.redirectUri);
   target.searchParams.set('code', code);
   if (p.params.state !== undefined) target.searchParams.set('state', p.params.state);
@@ -366,6 +429,12 @@ app.post('/mcp', auth, express.json({ limit: '10mb' }), async (req, res) => {
 app.all('/mcp', (_req, res) => res.status(405).set('Allow', 'POST').end());
 app.get('/', (_req, res) => res.type('text').send('dot-bridge is running.'));
 
+if (STATUS_JSON || process.stdin.isTTY) {
+  createInterface({ input: process.stdin }).on('line', line => {
+    const [action, id] = line.trim().split(/\s+/);
+    localDecision(action, id);
+  });
+}
 if (STATUS_JSON) {
   process.stdin.on('end', () => process.exit(0));
   process.stdin.resume();
@@ -393,6 +462,7 @@ const listener = app.listen(PORT, '127.0.0.1', async () => {
       process.exit(1);
     }
   }
+  publishAccess();
   emit('ready', { url: MCP_URL.href, pairingCode: PAIRING_CODE, roots: ROOTS, logFile: LOG_FILE, hostname: os.hostname() });
   if (STATUS_JSON) return;
   console.log(`

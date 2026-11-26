@@ -2,7 +2,7 @@
 
 Let your ChatGPT dot use your Mac without the ChatGPT desktop app.
 
-dot-bridge is a small Node program. It runs an MCP server on your Mac, opens a Cloudflare tunnel to it, and protects it with OAuth plus a pairing code. You add it to ChatGPT as a custom MCP plugin, and your dot (or any ChatGPT chat) can call its tools.
+dot-bridge is a small Node program. It runs an MCP server on your Mac, opens a Cloudflare tunnel to it, and protects it with OAuth, a pairing code, and explicit local approval. You add it to ChatGPT as a custom MCP plugin, and your dot (or any ChatGPT chat) can call its tools.
 
 It does **not** appear under your dot's **Computers** list. It appears as a plugin.
 
@@ -44,7 +44,7 @@ It prints a `https://….trycloudflare.com/mcp` URL and a 6-digit pairing code. 
 
 1. In ChatGPT on the web, open **Plugins → + → Add custom MCP server**.
 2. Paste the URL, choose **OAuth**, accept the warning, and select **Create as a plugin**, then install it.
-3. When the approval page opens, enter the pairing code.
+3. Enter the pairing code in the browser. Match its request ID in dot-bridge on your Mac and click **Approve** within 60 seconds. If running in a terminal instead, enter the displayed `approve` command there.
 4. Ask your dot: `Use the dot-bridge plugin's computer_info tool.`
 
 Each Mac chooses its own hosting mode under **Settings → Hosting → Address**. Temporary URL is the default. To keep the same address across restarts:
@@ -79,4 +79,6 @@ For the CLI, set `PUBLIC_URL=https://your-host` and optionally `DOT_BRIDGE_CHECK
 
 ## Security
 
-Anyone who passes the approval page can run commands as you. The pairing code is new on every start, and five wrong attempts lock approval until restart. Tokens are kept in `~/.dot-bridge/state.json`; delete that file to revoke every connection. Every tool call is logged to `~/.dot-bridge/activity.log`. Stop the program to cut access immediately.
+A pairing code alone does not grant access. The Mac owner must approve the matching browser request locally. Approval authorizes that OAuth connection, not a verified individual ChatGPT identity. Earlier code-only sessions must pair again after upgrading. To invalidate a connection’s access and refresh tokens, open **Paired connections → Revoke**, or use the displayed `revoke` command in the local CLI. Revocation blocks future requests; it does not undo actions or stop already-running jobs.
+
+Approved clients can run commands with your macOS user's permissions. The allowed folders constrain file tools and working-directory selection; they are not a shell sandbox. Keep the pairing code and `~/.dot-bridge/state.json` private. Five wrong codes lock pairing until restart.

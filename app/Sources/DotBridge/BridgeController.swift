@@ -8,6 +8,11 @@ struct ActivityEntry: Identifiable {
     let summary: String
 }
 
+struct PairingClient: Identifiable, Decodable {
+    let id: String
+    let host: String
+}
+
 @MainActor
 final class BridgeController: ObservableObject {
     enum Status: Equatable {
@@ -22,6 +27,13 @@ final class BridgeController: ObservableObject {
     @Published private(set) var pairingCode: String?
     @Published private(set) var logFile: String?
     @Published private(set) var activity: [ActivityEntry] = []
+    @Published private(set) var requests: [PairingClient] = []
+    @Published private(set) var paired: [PairingClient] = []
+
+    func decide(_ action: String, for client: PairingClient) {
+        guard UUID(uuidString: client.id) != nil else { return }
+        try? stdinPipe?.fileHandleForWriting.write(contentsOf: Data("\(action) \(client.id)\n".utf8))
+    }
 
     private var process: Process?
     private var stdinPipe: Pipe?
@@ -146,6 +158,15 @@ final class BridgeController: ObservableObject {
         else { return }
 
         switch type {
+        case "access":
+            struct Access: Decodable {
+                let requests: [PairingClient]
+                let paired: [PairingClient]
+            }
+            if let access = try? JSONDecoder().decode(Access.self, from: data) {
+                requests = access.requests
+                paired = access.paired
+            }
         case "ready":
             mcpURL = obj["url"] as? String
             pairingCode = obj["pairingCode"] as? String
@@ -163,6 +184,8 @@ final class BridgeController: ObservableObject {
     }
 
     private func processEnded(code: Int32) {
+        requests.removeAll()
+        paired.removeAll()
         process = nil
         stdinPipe = nil
         mcpURL = nil
