@@ -78,8 +78,8 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Settings").font(.headline)
-            Text("Hosting").font(.subheadline.weight(.semibold))
+            Text("Settings").font(.system(size: 17, weight: .semibold, design: .rounded))
+            Label("Hosting", systemImage: "network").font(.subheadline.weight(.semibold))
             Group {
                 Picker("Address", selection: $hosting) {
                     Text("Temporary URL").tag("temporary")
@@ -97,40 +97,52 @@ struct SettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Divider()
-            DisclosureGroup("App preferences") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Toggle("Show in Dock", isOn: $showInDock)
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 0) {
+                    preference("Show in Dock", icon: "dock.rectangle", isOn: $showInDock)
                         .onChange(of: showInDock) { _, value in AppSettings.applyDockVisibility(value) }
-                    Toggle("Open at login", isOn: Binding(
+                    Divider()
+                    preference("Open at login", icon: "sunrise", isOn: Binding(
                         get: { loginItem.status == .enabled || loginItem.status == .requiresApproval },
                         set: { loginItem.setEnabled($0) }
                     ))
                     if loginItem.status == .requiresApproval {
-                        Button("Approve in System Settings…") {
-                            SMAppService.openSystemSettingsLoginItems()
-                        }
+                        Button("Approve in System Settings…") { SMAppService.openSystemSettingsLoginItems() }
                     }
-                    Toggle("Start the bridge when the app opens", isOn: $startOnLaunch)
-                    if let loginError = loginItem.errorMessage {
-                        Text(loginError).font(.caption).foregroundStyle(.red)
+                    if let message = loginItem.errorMessage {
+                        Text(message).font(.caption).foregroundStyle(.red)
                     }
-                }.padding(.top, 6)
+                    Divider()
+                    preference("Start bridge on launch", icon: "bolt", isOn: $startOnLaunch)
+                }
+                .padding(.horizontal, 12)
+                .background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 9))
+            } label: {
+                Text("App preferences").font(.subheadline.weight(.semibold))
             }
-            Divider()
-            DisclosureGroup("Advanced bridge settings") {
-                VStack(alignment: .leading, spacing: 8) {
-                    LabeledContent("Allowed folders") {
-                        TextField("Allowed folders", text: $allowedRoots, prompt: Text(NSHomeDirectory())).labelsHidden()
+            DisclosureGroup {
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 9) {
+                    GridRow {
+                        Text("Allowed folders")
+                        TextField("Allowed folders", text: $allowedRoots, prompt: Text(NSHomeDirectory()))
                     }
-                    LabeledContent("Node path") {
-                        TextField("Node path", text: $nodePath, prompt: Text("Automatic")).labelsHidden()
+                    GridRow {
+                        Text("Node path")
+                        TextField("Node path", text: $nodePath, prompt: Text("Automatic"))
                     }
-                    LabeledContent("Local port") {
-                        TextField("Local port", value: $port, format: .number.grouping(.never)).labelsHidden()
+                    GridRow {
+                        Text("Local port")
+                        TextField("Local port", value: $port, format: .number.grouping(.never))
                     }
-                    Text("Separate folder paths with a colon.").font(.caption).foregroundStyle(.secondary)
-                }.padding(.top, 6)
+                    Text("Separate folder paths with a colon.")
+                        .font(.caption).foregroundStyle(.secondary).gridCellColumns(2)
+                }
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .padding(12)
+                .background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 9))
+            } label: {
+                Text("Advanced bridge settings").font(.subheadline.weight(.semibold))
             }
             Text("Hosting and bridge changes apply on the next start.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -141,5 +153,15 @@ struct SettingsView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             loginItem.refresh()
         }
+    }
+
+    private func preference(_ title: String, icon: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).foregroundStyle(.secondary).frame(width: 18).accessibilityHidden(true)
+            Text(title).font(.callout)
+            Spacer(minLength: 8)
+            Toggle(title, isOn: isOn).labelsHidden()
+        }
+        .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
     }
 }
