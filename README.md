@@ -16,12 +16,12 @@ It does **not** appear under your dot's **Computers** list. It appears as a plug
 
 ## Menu bar app
 
-`app/` is a small native SwiftUI app (no Electron). It lives in the menu bar, can optionally show in the Dock, and controls the bridge:
+`app/` is a small native SwiftUI app (no Electron). It shows in the Dock and the menu bar by default (either can be hidden), and controls the bridge:
 
 - Start/stop switch, status light, and live activity list
 - MCP URL and pairing code with copy buttons
 - A separate window you can open or hide
-- Settings: show in Dock, open at login, start on launch, allowed folders, fixed public URL, Node path, port
+- Settings: show in Dock (on by default), open at login, start on launch, allowed folders, fixed public URL, Node path, port
 
 Build it:
 

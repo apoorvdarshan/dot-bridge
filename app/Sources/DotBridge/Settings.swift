@@ -27,7 +27,7 @@ enum AppSettings {
 }
 
 struct SettingsView: View {
-    @AppStorage(AppSettings.showInDockKey) private var showInDock = false
+    @AppStorage(AppSettings.showInDockKey) private var showInDock = true
     @AppStorage(AppSettings.startOnLaunchKey) private var startOnLaunch = true
     @AppStorage(AppSettings.allowedRootsKey) private var allowedRoots = ""
     @AppStorage(AppSettings.publicURLKey) private var publicURL = ""

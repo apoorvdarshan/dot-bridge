@@ -4,16 +4,22 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let bridge = BridgeController()
+    var openMainWindow: (() -> Void)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: [
-            AppSettings.showInDockKey: false,
+            AppSettings.showInDockKey: true,
             AppSettings.startOnLaunchKey: true
         ])
         AppSettings.applyDockVisibility(UserDefaults.standard.bool(forKey: AppSettings.showInDockKey))
         if UserDefaults.standard.bool(forKey: AppSettings.startOnLaunchKey) {
             bridge.start()
         }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { openMainWindow?() }
+        return true
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -30,23 +36,38 @@ struct DotBridgeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
+        Window("dot-bridge", id: "main") {
+            PanelView(inWindow: true)
+                .environmentObject(appDelegate.bridge)
+                .background(WindowOpenerRegistrar(appDelegate: appDelegate))
+        }
+        .windowResizability(.contentSize)
+
         MenuBarExtra {
             PanelView()
                 .environmentObject(appDelegate.bridge)
+                .background(WindowOpenerRegistrar(appDelegate: appDelegate))
         } label: {
             MenuBarIcon(bridge: appDelegate.bridge)
         }
         .menuBarExtraStyle(.window)
 
-        Window("dot-bridge", id: "main") {
-            PanelView(inWindow: true)
-                .environmentObject(appDelegate.bridge)
-        }
-        .windowResizability(.contentSize)
-        .defaultLaunchBehavior(.suppressed)
-
         Settings {
             SettingsView()
+        }
+    }
+}
+
+private struct WindowOpenerRegistrar: View {
+    let appDelegate: AppDelegate
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Color.clear.onAppear {
+            appDelegate.openMainWindow = {
+                openWindow(id: "main")
+                NSApp.activate(ignoringOtherApps: true)
+            }
         }
     }
 }
