@@ -36,6 +36,8 @@ open -a dot-bridge
 ```
 
 For terminal-only use, skip the last two commands and run `dot-bridge`.
+You can also download the `.tgz` from [GitHub Releases](https://github.com/apoorvdarshan/dot-bridge/releases)
+and install it locally with `npm install -g ./dot-bridge-0.1.0.tgz`.
 Install `cloudflared` separately for temporary URLs. The npm installer also
 accepts a destination directory and does not overwrite an existing app.
 Each Mac creates its own temporary address unless you configure a permanent one.
