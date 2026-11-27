@@ -1,10 +1,18 @@
 {
   "name": "dot-bridge",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Let a ChatGPT dot use your Mac through a custom MCP plugin, without the ChatGPT desktop app",
   "main": "server.mjs",
+  "repository": "github:apoorvdarshan/dot-bridge",
+  "bin": {
+    "dot-bridge": "server.mjs",
+    "dot-bridge-install-app": "install-app.sh"
+  },
+  "files": ["server.mjs", "install-app.sh", "build/dot-bridge-macos.zip"],
+  "engines": { "node": ">=20" },
   "scripts": {
-    "start": "node server.mjs"
+    "start": "node server.mjs",
+    "prepack": "test -s build/dot-bridge-macos.zip"
   },
   "keywords": [],
   "type": "module",

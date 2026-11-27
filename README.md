@@ -18,6 +18,28 @@ Ask your ChatGPT dot from your phone to check a file or start a Codex task on yo
 - `codex` CLI, only for the Codex tools
 - A ChatGPT plan that can add custom MCP servers. OpenAI's docs say Pro gets read/fetch tools only and Business/Enterprise get write tools. Plus isn't documented.
 
+## Install
+
+Homebrew installs the native app, Node, and `cloudflared`:
+
+```sh
+brew install --cask apoorvdarshan/tap/dot-bridge
+open -a dot-bridge
+```
+
+Or install from npm on macOS with Node 20+:
+
+```sh
+npm install -g dot-bridge
+dot-bridge-install-app
+open -a dot-bridge
+```
+
+For terminal-only use, skip the last two commands and run `dot-bridge`.
+Install `cloudflared` separately for temporary URLs. The npm installer also
+accepts a destination directory and does not overwrite an existing app.
+Each Mac creates its own temporary address unless you configure a permanent one.
+
 ## Build the Mac app
 
 `app/` is a small native SwiftUI app (no Electron). It shows in the Dock and the menu bar by default (either can be hidden), and controls the bridge:
